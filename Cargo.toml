@@ -1,0 +1,11 @@
+[package]
+name = "rustmus"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+crossterm = "0.28.1"  # For handling terminal I/O
+ratatui = { version = "0.29.0", features = ["crossterm"] }       # For building the TUI interface
+tokio = { version = "1", features = ["full"] }  # For async support if needed
+walkdir = "2.5"
+id3 = "1.7"
