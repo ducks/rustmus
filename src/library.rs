@@ -1,11 +1,8 @@
-use std::path::{ Path, PathBuf };
-use serde::{
-    Serialize,
-    Deserialize
-};
-use walkdir::WalkDir;
 use id3::Tag;
-use ratatui::widgets::ListState;
+use ratatui::widgets::{ListItem, ListState};
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
+use walkdir::WalkDir;
 
 use crate::persistence;
 
@@ -22,8 +19,13 @@ pub enum VisibleRow {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LibrarySelection {
-    Artist { artist_index: usize },
-    Album { artist_index: usize, album_index: usize },
+    Artist {
+        artist_index: usize,
+    },
+    Album {
+        artist_index: usize,
+        album_index: usize,
+    },
 }
 
 pub struct LibraryState {
@@ -62,6 +64,7 @@ impl LibraryState {
                     let already_exists = album.tracks.iter().any(|t| t.path == track.path);
                     if !already_exists {
                         album.tracks.push(track);
+                        album.tracks.sort_by_key(|t| t.track_number.unwrap_or(999));
                     }
                 } else {
                     artist.albums.push(AlbumNode {
@@ -129,9 +132,10 @@ impl LibraryState {
 
     pub fn selected_album(&self) -> Option<&AlbumNode> {
         match self.selection {
-            Some(LibrarySelection::Album { artist_index, album_index }) => {
-                self.artists.get(artist_index)?.albums.get(album_index)
-            }
+            Some(LibrarySelection::Album {
+                artist_index,
+                album_index,
+            }) => self.artists.get(artist_index)?.albums.get(album_index),
             _ => None,
         }
     }
@@ -155,11 +159,24 @@ impl LibraryState {
     fn selected_index<'a>(rows: &'a [VisibleRow], selection: Option<LibrarySelection>) -> usize {
         rows.iter()
             .position(|row| match (row, selection) {
-                (VisibleRow::Artist { artist_index, .. }, Some(LibrarySelection::Artist { artist_index: ai })) => *artist_index == ai,
-                (VisibleRow::Album { artist_index, album_index, .. }, Some(LibrarySelection::Album { artist_index: ai, album_index: bi })) => *artist_index == ai && *album_index == bi,
+                (
+                    VisibleRow::Artist { artist_index, .. },
+                    Some(LibrarySelection::Artist { artist_index: ai }),
+                ) => *artist_index == ai,
+                (
+                    VisibleRow::Album {
+                        artist_index,
+                        album_index,
+                        ..
+                    },
+                    Some(LibrarySelection::Album {
+                        artist_index: ai,
+                        album_index: bi,
+                    }),
+                ) => *artist_index == ai && *album_index == bi,
                 _ => false,
             })
-        .unwrap_or(0)
+            .unwrap_or(0)
     }
 
     pub fn row_to_selection(row: &VisibleRow) -> LibrarySelection {
@@ -198,17 +215,20 @@ impl LibraryState {
 
     pub fn visible_tracks(&self) -> Vec<&LibraryTrack> {
         match self.selection {
-            Some(LibrarySelection::Artist { artist_index }) => {
-                self.artists.get(artist_index)
-                    .map(|a| a.albums.iter().flat_map(|alb| &alb.tracks).collect())
-                    .unwrap_or_default()
-            }
-            Some(LibrarySelection::Album { artist_index, album_index }) => {
-                self.artists.get(artist_index)
-                    .and_then(|a| a.albums.get(album_index))
-                    .map(|alb| alb.tracks.iter().collect())
-                    .unwrap_or_default()
-            }
+            Some(LibrarySelection::Artist { artist_index }) => self
+                .artists
+                .get(artist_index)
+                .map(|a| a.albums.iter().flat_map(|alb| &alb.tracks).collect())
+                .unwrap_or_default(),
+            Some(LibrarySelection::Album {
+                artist_index,
+                album_index,
+            }) => self
+                .artists
+                .get(artist_index)
+                .and_then(|a| a.albums.get(album_index))
+                .map(|alb| alb.tracks.iter().collect())
+                .unwrap_or_default(),
             None => vec![],
         }
     }
@@ -245,6 +265,49 @@ impl LibraryState {
             self.state.select(Some(current_index));
         }
     }
+
+    pub fn right_pane_items(&self) -> (Vec<ListItem>, Vec<usize>) {
+        let tracks = self.visible_tracks();
+        let mut items = Vec::new();
+        let mut playable_indices = Vec::new();
+        let mut last_album: Option<&str> = None;
+
+        for track in tracks {
+            let album = track.album.as_str();
+            if last_album != Some(album) {
+                items.push(ListItem::new(format!("{}:", album)));
+                last_album = Some(album);
+            }
+
+            playable_indices.push(items.len()); // index where this track will be
+            let number = track
+                .track_number
+                .map_or("--".to_string(), |n| format!("{:02}", n));
+            items.push(ListItem::new(format!("  {}. {}", number, track.title)));
+        }
+
+        (items, playable_indices)
+    }
+
+    pub fn next_track_path(&self, current: &Path) -> Option<PathBuf> {
+        let tracks = self.visible_tracks();
+
+        for (i, track) in tracks.iter().enumerate() {
+            if track.path == current && i + 1 < tracks.len() {
+                return Some(tracks[i + 1].path.clone());
+            }
+        }
+
+        None
+    }
+
+    pub fn select_track_by_path(&mut self, path: &Path) {
+        let tracks = self.visible_tracks();
+        if let Some(i) = tracks.iter().position(|t| &t.path == path) {
+            self.track_index = i;
+            self.state.select(Some(i));
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -253,6 +316,7 @@ pub struct LibraryTrack {
     pub title: String,
     pub artist: String,
     pub album: String,
+    pub track_number: Option<u32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -273,26 +337,45 @@ pub fn scan_path_for_tracks(path: &Path) -> Vec<LibraryTrack> {
 
     for entry in WalkDir::new(path)
         .into_iter()
-            .filter_map(Result::ok)
-            .filter(|e| e.path().is_file())
-            {
-                let path = entry.path();
-                if path.extension().and_then(|ext| ext.to_str()).map(|s| s.eq_ignore_ascii_case("mp3")) != Some(true) {
-                    continue;
-                }
+        .filter_map(Result::ok)
+        .filter(|e| e.path().is_file())
+    {
+        let path = entry.path();
+        if path
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .map(|s| s.eq_ignore_ascii_case("mp3"))
+            != Some(true)
+        {
+            continue;
+        }
 
-                let tag = Tag::read_from_path(path).ok();
-                let title = tag.as_ref().and_then(|t| t.title()).unwrap_or("Unknown Title").to_string();
-                let artist = tag.as_ref().and_then(|t| t.artist()).unwrap_or("Unknown Artist").to_string();
-                let album = tag.as_ref().and_then(|t| t.album()).unwrap_or("Unknown Album").to_string();
+        let tag = Tag::read_from_path(path).ok();
+        let title = tag
+            .as_ref()
+            .and_then(|t| t.title())
+            .unwrap_or("Unknown Title")
+            .to_string();
+        let artist = tag
+            .as_ref()
+            .and_then(|t| t.artist())
+            .unwrap_or("Unknown Artist")
+            .to_string();
+        let album = tag
+            .as_ref()
+            .and_then(|t| t.album())
+            .unwrap_or("Unknown Album")
+            .to_string();
+        let track_number = tag.as_ref().and_then(|t| t.track()).map(|n| n as u32);
 
-                tracks.push(LibraryTrack {
-                    path: path.to_path_buf(),
-                    title,
-                    artist,
-                    album,
-                });
-            }
+        tracks.push(LibraryTrack {
+            path: path.to_path_buf(),
+            title,
+            artist,
+            album,
+            track_number,
+        });
+    }
 
     tracks
 }
@@ -300,5 +383,5 @@ pub fn scan_path_for_tracks(path: &Path) -> Vec<LibraryTrack> {
 #[derive(PartialEq)]
 pub enum LibraryFocus {
     Left,
-    Right
+    Right,
 }

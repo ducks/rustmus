@@ -1,21 +1,22 @@
-use ratatui::{prelude::*, widgets::*};
+use crate::app::App;
 use crate::browser::BrowserItem;
-use crate::app::{App};
+use ratatui::{prelude::*, widgets::*};
 
 pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
-    let items: Vec<ListItem> = app.browser.list.entries.iter().map(|item| {
-        match item {
+    let items: Vec<ListItem> = app
+        .browser
+        .list
+        .entries
+        .iter()
+        .map(|item| match item {
             BrowserItem::UpDirectory => ListItem::new("[DIR] .."),
             BrowserItem::Entry(path) => {
-                let name = path
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .unwrap_or("???");
+                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("???");
                 let prefix = if path.is_dir() { "[DIR] " } else { "      " };
                 ListItem::new(format!("{prefix}{name}"))
             }
-        }
-    }).collect();
+        })
+        .collect();
 
     let list = List::new(items)
         .block(Block::default().title("Browser").borders(Borders::ALL))

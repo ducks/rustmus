@@ -1,5 +1,5 @@
-use std::{fs, path::Path};
 use crate::library::ArtistNode;
+use std::{fs, path::Path};
 
 const SAVE_PATH: &str = "library.json"; // or "library.ron"
 

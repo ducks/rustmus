@@ -3,29 +3,23 @@ mod browser;
 mod library;
 mod list;
 mod persistence;
+mod player;
 mod screens;
 mod ui;
 
-use app::{
-    App,
-    AppScreen
-};
+use app::{App, AppScreen};
 
 use crate::browser::BrowserItem;
 
-use crate::library::{
-    LibraryFocus,
-    scan_path_for_tracks,
-};
-
+use crate::library::{LibraryFocus, scan_path_for_tracks};
 
 use crossterm::{
     event::{self, Event, KeyCode},
-    terminal::{enable_raw_mode, disable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
     execute,
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use ratatui::{prelude::*, backend::CrosstermBackend};
-use std::io::{stdout, Result};
+use ratatui::{backend::CrosstermBackend, prelude::*};
+use std::io::{Result, stdout};
 
 fn main() -> Result<()> {
     enable_raw_mode()?;
@@ -37,6 +31,7 @@ fn main() -> Result<()> {
     let mut app = App::new();
 
     loop {
+        app.update();
         terminal.draw(|f| ui::draw_ui(f, &mut app))?;
 
         if event::poll(std::time::Duration::from_millis(200))? {
@@ -47,7 +42,8 @@ fn main() -> Result<()> {
                     KeyCode::Char('5') => app.goto_screen(app::AppScreen::Browser),
                     KeyCode::Char('a') => {
                         if app.screen == AppScreen::Browser {
-                            if let Some(BrowserItem::Entry(path)) = app.browser.list.selected_item() {
+                            if let Some(BrowserItem::Entry(path)) = app.browser.list.selected_item()
+                            {
                                 let tracks = scan_path_for_tracks(path);
                                 app.library.add_tracks(tracks);
                             }
@@ -79,6 +75,35 @@ fn main() -> Result<()> {
                         if app.screen == AppScreen::Browser {
                             app.browser.open_selected();
                         }
+
+                        if app.screen == AppScreen::Library
+                            && app.library.focus == LibraryFocus::Right
+                        {
+                            if let Some(track) =
+                                app.library.visible_tracks().get(app.library.track_index)
+                            {
+                                app.player.stop(); // stop current
+                                app.player.play(&track.path); // play new
+                            }
+                        }
+                    }
+
+                    KeyCode::Char('p') => {
+                        app.player.autoplay = !app.player.autoplay;
+                    }
+
+                    KeyCode::Char('c') => {
+                        if app.player.is_loaded() {
+                            if app.player.is_paused() {
+                                app.player.resume();
+                            } else {
+                                app.player.pause();
+                            }
+                        }
+                    }
+
+                    KeyCode::Char('n') => {
+                        app.play_next_track();
                     }
 
                     KeyCode::Backspace => {

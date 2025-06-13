@@ -1,2 +1,2 @@
-pub mod library;
 pub mod browser;
+pub mod library;

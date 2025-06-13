@@ -28,23 +28,40 @@ cd tui-music-player
 cargo run
 ```
 
-## Controls
+## Keybindings
 
-| Key              | Action                      |
-|------------------|-----------------------------|
-| `1`              | Go to Library Screen        |
-| `5`              | Go to Browser Screen        |
-| `↑ / ↓`          | Move selection              |
-| `Enter`          | Enter directory / open item |
-| `Space`          | Toggle Artist Expanded View |
-| `q`              | Quit                        |
+| Key           | Action                          |
+|---------------|---------------------------------|
+| `1`           | Go to Library                   |
+| `5`           | Go to Browser                   |
+
+
+### Browser View
+
+| Key           | Action                          |
+|---------------|---------------------------------|
+| `a`           | Add file/dir to playlist        |
+
+### Library View
+
+| Key           | Action                          |
+|---------------|---------------------------------|
+| `Tab`         | Toggle focus left/right         |
+| `Enter`       | Play selected track             |
+| `c`           | Toggle pause/resume             |
+| `n`           | Next song                       |
+| `p`           | Toggle autoplay                 |
+| `Backspace`   | Go up a directory (Browser)     |
+| `Space`       | Toggle artist/album view        |
+| `Up/Down`     | Navigate lists                  |
 
 ## Planned Features / TODO
 
 - [x] Hide dotfiles
 - [x] Prevent duplication
 - [x] Library persistence
-- [ ] Audio playback via `rodio`
+- [x] Audio playback via `rodio`
+- [ ] Autoplay
 - [ ] Sort directories before files
 - [ ] Playlist screen with queue
 - [ ] Footer bar with help / now playing

@@ -1,11 +1,8 @@
-use ratatui::prelude::*;
 use crate::{
-    app::{
-        App,
-        AppScreen
-    },
-    screens
+    app::{App, AppScreen},
+    screens,
 };
+use ratatui::prelude::*;
 
 pub fn draw_ui(frame: &mut Frame, app: &mut App) {
     let area = frame.area();

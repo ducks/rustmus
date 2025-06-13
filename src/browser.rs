@@ -1,10 +1,10 @@
-use std::path::PathBuf;
 use crate::list::ListSelector;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
 pub enum BrowserItem {
-    UpDirectory,          // represents `..`
-    Entry(PathBuf),       // actual file or folder
+    UpDirectory,    // represents `..`
+    Entry(PathBuf), // actual file or folder
 }
 
 pub struct BrowserState {
