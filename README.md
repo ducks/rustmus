@@ -14,6 +14,7 @@ filesystem, browse audio files, and play music — all in the terminal.
 - Navigate directories using keyboard
 - Dotfiles are hidden by default
 - Modular, extensible codebase
+- Persistent library
 
 ## Screenshots
 
@@ -35,13 +36,16 @@ cargo run
 | `5`              | Go to Browser Screen        |
 | `↑ / ↓`          | Move selection              |
 | `Enter`          | Enter directory / open item |
+| `Space`          | Toggle Artist Expanded View |
 | `q`              | Quit                        |
 
 ## Planned Features / TODO
 
 - [x] Hide dotfiles
-- [ ] Sort directories before files
+- [x] Prevent duplication
+- [x] Library persistence
 - [ ] Audio playback via `rodio`
+- [ ] Sort directories before files
 - [ ] Playlist screen with queue
 - [ ] Footer bar with help / now playing
 - [ ] Config file for keybindings and paths

@@ -2,8 +2,9 @@ mod app;
 mod browser;
 mod library;
 mod list;
-mod ui;
+mod persistence;
 mod screens;
+mod ui;
 
 use app::{
     App,
@@ -12,7 +13,10 @@ use app::{
 
 use crate::browser::BrowserItem;
 
-use crate::library::scan_path_for_tracks;
+use crate::library::{
+    LibraryFocus,
+    scan_path_for_tracks,
+};
 
 
 use crossterm::{
@@ -49,18 +53,28 @@ fn main() -> Result<()> {
                             }
                         }
                     }
-                    KeyCode::Down => {
-                        match app.screen {
-                            AppScreen::Browser => app.browser.move_down(),
-                            AppScreen::Library => app.library.move_down(),
-                        }
-                    }
-                    KeyCode::Up => {
-                        match app.screen {
-                            AppScreen::Browser => app.browser.move_up(),
-                            AppScreen::Library => app.library.move_up(),
-                        }
-                    }
+
+                    KeyCode::Down => match app.screen {
+                        AppScreen::Browser => app.browser.move_down(),
+
+                        AppScreen::Library => match app.library.focus {
+                            LibraryFocus::Left => app.library.move_down(),
+                            LibraryFocus::Right => {
+                                let count = app.library.visible_tracks().len();
+                                app.library.move_track_down(count);
+                            }
+                        },
+                    },
+
+                    KeyCode::Up => match app.screen {
+                        AppScreen::Browser => app.browser.move_up(),
+
+                        AppScreen::Library => match app.library.focus {
+                            LibraryFocus::Left => app.library.move_up(),
+                            LibraryFocus::Right => app.library.move_track_up(),
+                        },
+                    },
+
                     KeyCode::Enter => {
                         if app.screen == AppScreen::Browser {
                             app.browser.open_selected();
@@ -72,6 +86,12 @@ fn main() -> Result<()> {
                             app.browser.go_up();
                         }
                     }
+                    KeyCode::Char(' ') => {
+                        if app.screen == AppScreen::Library {
+                            app.library.toggle_expanded();
+                        }
+                    }
+                    KeyCode::Tab => app.library.tab_focus(),
                     _ => {}
                 }
             }

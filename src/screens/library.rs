@@ -9,9 +9,8 @@ use crate::{app::{
 };
 
 use crate::library::{
-    LibrarySelection,
-    LibraryTrack,
-    ArtistNode
+    LibraryFocus,
+    LibrarySelection
 };
 
 use crate::library::VisibleRow;
@@ -22,105 +21,97 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
         .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
         .split(area);
 
-    let mut visible_rows = Vec::new();
+    // ───── Left: Artist/Album list ─────
+    let mut left_items = Vec::new();
+    let mut selected_idx = 0;
 
-    for (artist_index, artist) in app.library.artists.iter().enumerate() {
-        visible_rows.push(VisibleRow::Artist { artist_index, artist });
+    for (i, row) in app.library.visible_rows.iter().enumerate() {
+        let is_selected = Some(row_to_selection(row)) == app.library.selection;
 
-        if artist.expanded {
-            for (album_index, album) in artist.albums.iter().enumerate() {
-                visible_rows.push(VisibleRow::Album {
-                    artist_index,
-                    album_index,
-                    album_name: &album.name,
-                });
-            }
-        }
-    }
-
-    let mut items = Vec::new();
-    let mut selected_visual_index = 0;
-
-    for (i, row) in visible_rows.iter().enumerate() {
-        match row {
-            VisibleRow::Artist { artist_index, artist } => {
-                let selected = matches!(
-                    app.library.selection,
-                    Some(LibrarySelection::Artist { artist_index: ai }) if ai == *artist_index
-                );
-                if selected {
-                    selected_visual_index = i;
-                }
+        let label = match row {
+            VisibleRow::Artist { artist_index } => {
+                let artist = &app.library.artists[*artist_index];
                 let marker = if artist.expanded { "▾" } else { "▸" };
-                let label = format!("{marker} {}", artist.name);
-                let style = if selected {
-                    Style::default().add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default()
-                };
-                items.push(ListItem::new(label).style(style));
+                format!("{marker} {}", artist.name)
             }
-            VisibleRow::Album { artist_index, album_index, album_name } => {
-                let selected = matches!(
-                    app.library.selection,
-                    Some(LibrarySelection::Album {
-                        artist_index: ai,
-                        album_index: bi
-                    }) if ai == *artist_index && bi == *album_index
-                );
-                if selected {
-                    selected_visual_index = i;
-                }
-                let style = if selected {
-                    Style::default().add_modifier(Modifier::ITALIC)
-                } else {
-                    Style::default().fg(Color::DarkGray)
-                };
-                items.push(ListItem::new(format!("  {album_name}")).style(style));
+            VisibleRow::Album {
+                artist_index,
+                album_index,
+            } => {
+                let album = &app.library.artists[*artist_index].albums[*album_index];
+                format!("  {}", album.name)
             }
+        };
+
+        if is_selected {
+            selected_idx = i;
         }
+
+        let style = if is_selected {
+            Style::default().add_modifier(Modifier::BOLD)
+        } else {
+            Style::default()
+        };
+
+        left_items.push(ListItem::new(label).style(style));
     }
 
-    let mut list_state = ListState::default();
-    list_state.select(Some(selected_visual_index));
+    let mut left_state = ListState::default();
+    left_state.select(Some(selected_idx));
 
-    let list = List::new(items)
+    let left_list = List::new(left_items)
         .block(Block::default().title("Library").borders(Borders::ALL))
-        .highlight_style(Style::default().bg(Color::Green).fg(Color::Black))
-        .highlight_symbol("➤ ");
+        .highlight_symbol("➤ ")
+        .highlight_style(Style::default().bg(Color::Green).fg(Color::Black));
 
-    frame.render_stateful_widget(list, chunks[0], &mut list_state);
+    frame.render_stateful_widget(left_list, chunks[0], &mut left_state);
 
-    // Draw right pane based on selection
-    let tracks: Vec<&LibraryTrack> = match app.library.selection {
-        Some(LibrarySelection::Artist { artist_index }) => app
-            .library
-            .artists
-            .get(artist_index)
-            .map(|artist| artist.albums.iter().flat_map(|a| &a.tracks).collect())
-            .unwrap_or_default(),
+    // ───── Right: Tracks ─────
+    let tracks = app.library.visible_tracks();
+    let mut right_state = ListState::default();
 
-        Some(LibrarySelection::Album {
+    if app.library.focus == LibraryFocus::Right {
+        right_state.select(Some(app.library.track_index));
+    }
+
+    let mut right_items = Vec::new();
+    let mut last_album: Option<&str> = None;
+
+    for track in tracks {
+        let album = track.album.as_str();
+
+        // If album changed, add album heading
+       if last_album != Some(album) {
+            right_items.push(ListItem::new(format!("{}:", track.album)));
+            last_album = Some(album);
+        }
+
+        right_items.push(ListItem::new(format!("  {}", track.title)));
+    }
+
+    let right_list = List::new(right_items)
+        .block(Block::default().title("Tracks").borders(Borders::ALL))
+        .highlight_symbol("➤ ")
+        .highlight_style(Style::default().bg(Color::Blue).fg(Color::Black));
+
+    if app.library.focus == LibraryFocus::Right {
+        frame.render_stateful_widget(right_list, chunks[1], &mut right_state);
+    } else {
+        frame.render_widget(right_list, chunks[1]);
+    }
+}
+
+fn row_to_selection(row: &VisibleRow) -> LibrarySelection {
+    match row {
+        VisibleRow::Artist { artist_index } => LibrarySelection::Artist {
+            artist_index: *artist_index,
+        },
+        VisibleRow::Album {
             artist_index,
             album_index,
-        }) => app
-            .library
-            .artists
-            .get(artist_index)
-            .and_then(|artist| artist.albums.get(album_index))
-            .map(|album| album.tracks.iter().collect())
-            .unwrap_or_default(),
-
-        None => Vec::new(),
-    };
-
-    let track_items: Vec<ListItem> = tracks
-        .iter()
-        .map(|track| ListItem::new(track.title.clone()))
-        .collect();
-
-    let track_list = List::new(track_items)
-        .block(Block::default().title("Tracks").borders(Borders::ALL));
-
-    frame.render_widget(track_list, chunks[1]);
+        } => LibrarySelection::Album {
+            artist_index: *artist_index,
+            album_index: *album_index,
+        },
+    }
 }
