@@ -344,7 +344,7 @@ pub fn scan_path_for_tracks(path: &Path) -> Vec<LibraryTrack> {
         if path
             .extension()
             .and_then(|ext| ext.to_str())
-            .map(|s| s.eq_ignore_ascii_case("mp3"))
+            .map(|s| s.eq_ignore_ascii_case("mp3") || s.eq_ignore_ascii_case("flac"))
             != Some(true)
         {
             continue;

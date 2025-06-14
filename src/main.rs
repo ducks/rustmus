@@ -21,7 +21,19 @@ use crossterm::{
 use ratatui::{backend::CrosstermBackend, prelude::*};
 use std::io::{Result, stdout};
 
+use simplelog::*;
+use std::fs::File;
+
 fn main() -> Result<()> {
+    CombinedLogger::init(vec![
+        WriteLogger::new(
+            LevelFilter::Debug,
+            Config::default(),
+            File::create("debug.log").unwrap(),
+        ),
+    ])
+    .unwrap();
+
     enable_raw_mode()?;
     execute!(stdout(), EnterAlternateScreen)?;
 
@@ -88,19 +100,19 @@ fn main() -> Result<()> {
                         }
                     }
 
-                    KeyCode::Char('p') => {
-                        app.player.autoplay = !app.player.autoplay;
-                    }
+                    // KeyCode::Char('p') => {
+                    //     app.player.autoplay = !app.player.autoplay;
+                    // }
 
-                    KeyCode::Char('c') => {
-                        if app.player.is_loaded() {
-                            if app.player.is_paused() {
-                                app.player.resume();
-                            } else {
-                                app.player.pause();
-                            }
-                        }
-                    }
+                    // KeyCode::Char('c') => {
+                    //     if app.player.is_loaded() {
+                    //         if app.player.is_paused() {
+                    //             app.player.resume();
+                    //         } else {
+                    //             app.player.pause();
+                    //         }
+                    //     }
+                    // }
 
                     KeyCode::Char('n') => {
                         app.play_next_track();

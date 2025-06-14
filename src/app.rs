@@ -36,7 +36,10 @@ impl App {
     }
 
     pub fn update(&mut self) {
-        if self.player.autoplay && self.player.is_loaded() && self.player.is_done() {
+        if self.player.autoplay &&
+            self.player.is_loaded() &&
+            self.player.is_done() &&
+            !self.player.is_playing {
             self.play_next_track();
         }
     }
