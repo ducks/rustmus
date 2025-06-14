@@ -1,8 +1,20 @@
-use id3::Tag;
+use std::fs::File;
+use std::path::{Path, PathBuf};
+
 use ratatui::widgets::{ListItem, ListState};
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
+
+
+use id3::Tag as Id3Tag;
+use symphonia::core::{
+    formats::FormatOptions,
+    io::MediaSourceStream,
+    meta::{MetadataOptions, MetadataRevision, StandardTagKey},
+    probe::Hint,
+    probe::ProbeResult,
+};
+use symphonia::default::get_probe;
 
 use crate::persistence;
 
@@ -332,6 +344,7 @@ pub struct ArtistNode {
     pub expanded: bool,
 }
 
+/// Scans a path recursively and parses audio files into LibraryTrack entries.
 pub fn scan_path_for_tracks(path: &Path) -> Vec<LibraryTrack> {
     let mut tracks = Vec::new();
 
@@ -341,32 +354,17 @@ pub fn scan_path_for_tracks(path: &Path) -> Vec<LibraryTrack> {
         .filter(|e| e.path().is_file())
     {
         let path = entry.path();
-        if path
+
+        let ext = path
             .extension()
             .and_then(|ext| ext.to_str())
-            .map(|s| s.eq_ignore_ascii_case("mp3") || s.eq_ignore_ascii_case("flac"))
-            != Some(true)
-        {
-            continue;
-        }
+            .map(|s| s.to_ascii_lowercase());
 
-        let tag = Tag::read_from_path(path).ok();
-        let title = tag
-            .as_ref()
-            .and_then(|t| t.title())
-            .unwrap_or("Unknown Title")
-            .to_string();
-        let artist = tag
-            .as_ref()
-            .and_then(|t| t.artist())
-            .unwrap_or("Unknown Artist")
-            .to_string();
-        let album = tag
-            .as_ref()
-            .and_then(|t| t.album())
-            .unwrap_or("Unknown Album")
-            .to_string();
-        let track_number = tag.as_ref().and_then(|t| t.track()).map(|n| n as u32);
+        let (title, artist, album, track_number) = match ext.as_deref() {
+            Some("mp3") => extract_id3_tags(path),
+            Some("flac") => extract_symphonia_tags(path),
+            _ => continue,
+        };
 
         tracks.push(LibraryTrack {
             path: path.to_path_buf(),
@@ -378,6 +376,88 @@ pub fn scan_path_for_tracks(path: &Path) -> Vec<LibraryTrack> {
     }
 
     tracks
+}
+
+fn extract_id3_tags(path: &Path) -> (String, String, String, Option<u32>) {
+    let tag = Id3Tag::read_from_path(path).ok();
+
+    let title = tag
+        .as_ref()
+        .and_then(|t| t.title())
+        .unwrap_or("Unknown Title")
+        .to_string();
+    let artist = tag
+        .as_ref()
+        .and_then(|t| t.artist())
+        .unwrap_or("Unknown Artist")
+        .to_string();
+    let album = tag
+        .as_ref()
+        .and_then(|t| t.album())
+        .unwrap_or("Unknown Album")
+        .to_string();
+    let track_number = tag.and_then(|t| t.track()).map(|n| n as u32);
+
+    (title, artist, album, track_number)
+}
+
+fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>) {
+    use symphonia::core::meta::StandardTagKey;
+
+    let file = match File::open(path) {
+        Ok(f) => f,
+        Err(_) => {
+            return (
+                "Unknown Title".into(),
+                "Unknown Artist".into(),
+                "Unknown Album".into(),
+                None,
+            );
+        }
+    };
+
+    let mss = MediaSourceStream::new(Box::new(file), Default::default());
+
+    let mut probed = match get_probe().format(
+        &Hint::new(),
+        mss,
+        &FormatOptions::default(),
+        &MetadataOptions::default(),
+    ) {
+        Ok(p) => p,
+        Err(_) => {
+            return (
+                "Unknown Title".into(),
+                "Unknown Artist".into(),
+                "Unknown Album".into(),
+                None,
+            );
+        }
+    };
+
+    let binding = probed.format.metadata();
+    let meta = binding.current();
+
+    let mut title = "Unknown Title".to_string();
+    let mut artist = "Unknown Artist".to_string();
+    let mut album = "Unknown Album".to_string();
+    let mut track_number = None;
+
+    if let Some(m) = meta {
+        for tag in m.tags() {
+            match tag.std_key {
+                Some(StandardTagKey::TrackTitle) => title = tag.value.to_string(),
+                Some(StandardTagKey::Artist) => artist = tag.value.to_string(),
+                Some(StandardTagKey::Album) => album = tag.value.to_string(),
+                Some(StandardTagKey::TrackNumber) => {
+                    track_number = tag.value.to_string().parse::<u32>().ok();
+                }
+                _ => {}
+            }
+        }
+    }
+
+    (title, artist, album, track_number)
 }
 
 #[derive(PartialEq)]

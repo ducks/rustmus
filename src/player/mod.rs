@@ -142,6 +142,8 @@ impl Player {
                     AudioBufferRef::S16(_) => log::debug!("Decoded buffer format: S16"),
                     AudioBufferRef::U8(_)  => log::debug!("Decoded buffer format: U8"),
                     AudioBufferRef::S24(_) => log::debug!("Decoded buffer format: S24"),
+                    AudioBufferRef::F64(_) => log::debug!("Decoded buffer format: F64"),
+                    AudioBufferRef::S32(_) => log::debug!("Decoded buffer format: S32"),
                     _ => log::debug!("Decoded buffer format: Unknown/Unsupported"),
                 }
 
@@ -167,14 +169,15 @@ impl Player {
                             }
                         }
                     }
-                    // AudioBufferRef::S24(buf) => {
-                    //     for frame in 0..buf.frames() {
-                    //         for chan in 0..buf.spec().channels.count() {
-                    //             let sample = buf.chan(chan)[frame].into();
-                    //             samples.push(sample as f32 / (1 << 23) as f32);
-                    //         }
-                    //     }
-                    // }
+                    AudioBufferRef::S24(buf) => {
+                        for frame in 0..buf.frames() {
+                            for chan in 0..buf.spec().channels.count() {
+                                let val = buf.chan(chan)[frame];
+                                let sample_f32 = val.into_i32() as f32 / (1 << 23) as f32;
+                                samples.push(sample_f32);
+                            }
+                        }
+                    }
                     AudioBufferRef::F64(buf) => {
                         for frame in 0..buf.frames() {
                             for chan in 0..buf.spec().channels.count() {
@@ -182,8 +185,15 @@ impl Player {
                             }
                         }
                     }
+                    AudioBufferRef::S32(buf) => {
+                        for frame in 0..buf.frames() {
+                            for chan in 0..buf.spec().channels.count() {
+                                samples.push(buf.chan(chan)[frame] as f32 / i32::MAX as f32);
+                            }
+                        }
+                    }
                     _ => {
-                        eprintln!("Unsupported buffer format");
+                        log::debug!("Unsupported buffer format");
                         continue;
                     }
                 }
@@ -192,7 +202,7 @@ impl Player {
                 std::thread::sleep(Duration::from_millis(10));
             }
 
-            eprintln!("Finished decoding.");
+            log::debug!("Finished decoding.");
         });
 
         self.handle = Some(handle);
