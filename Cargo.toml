@@ -11,4 +11,8 @@ walkdir = "2.5"
 id3 = "0.6"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-rodio = "0.17"
+symphonia = { version = "0.5", features = ["mp3", "flac", "pcm"] }
+cpal = "0.15"
+anyhow = "1"
+simplelog = "0.12.1"
+log = "0.4"
