@@ -63,7 +63,7 @@ cargo run
 - [x] Prevent duplication
 - [x] Library persistence
 - [x] Audio playback via `rodio`
-- [ ] Autoplay
+- [x] Autoplay
 - [ ] Sort directories before files
 - [ ] Playlist screen with queue
 - [ ] Footer bar with help / now playing
