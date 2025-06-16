@@ -225,21 +225,21 @@ impl LibraryState {
         }
     }
 
-    pub fn visible_tracks(&self) -> Vec<&LibraryTrack> {
+    pub fn visible_tracks(&self) -> Vec<LibraryTrack> {
         match self.selection {
             Some(LibrarySelection::Artist { artist_index }) => self
                 .artists
                 .get(artist_index)
-                .map(|a| a.albums.iter().flat_map(|alb| &alb.tracks).collect())
+                .map(|a| a.albums.iter().flat_map(|alb| alb.tracks.clone()).collect())
                 .unwrap_or_default(),
-            Some(LibrarySelection::Album {
-                artist_index,
-                album_index,
-            }) => self
-                .artists
+                Some(LibrarySelection::Album {
+                    artist_index,
+                    album_index,
+                }) => self
+            .artists
                 .get(artist_index)
                 .and_then(|a| a.albums.get(album_index))
-                .map(|alb| alb.tracks.iter().collect())
+                .map(|alb| alb.tracks.clone())
                 .unwrap_or_default(),
             None => vec![],
         }
@@ -282,11 +282,12 @@ impl LibraryState {
         let tracks = self.visible_tracks();
         let mut items = Vec::new();
         let mut playable_indices = Vec::new();
-        let mut last_album: Option<&str> = None;
+        let mut last_album: Option<String> = None;
 
         for track in tracks {
-            let album = track.album.as_str();
-            if last_album != Some(album) {
+            let album = track.album.clone();
+
+            if last_album.as_deref() != Some(album.as_str()) {
                 items.push(ListItem::new(format!("{}:", album)));
                 last_album = Some(album);
             }

@@ -13,6 +13,9 @@ use crate::browser::BrowserItem;
 
 use crate::library::{LibraryFocus, scan_path_for_tracks};
 
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
+
 use crossterm::{
     event::{self, Event, KeyCode},
     execute,
@@ -25,13 +28,11 @@ use simplelog::*;
 use std::fs::File;
 
 fn main() -> Result<()> {
-    CombinedLogger::init(vec![
-        WriteLogger::new(
-            LevelFilter::Debug,
-            Config::default(),
-            File::create("debug.log").unwrap(),
-        ),
-    ])
+    CombinedLogger::init(vec![WriteLogger::new(
+        LevelFilter::Trace,
+        Config::default(),
+        File::create("debug.log").unwrap(),
+    )])
     .unwrap();
 
     enable_raw_mode()?;
@@ -47,17 +48,20 @@ fn main() -> Result<()> {
         terminal.draw(|f| ui::draw_ui(f, &mut app))?;
 
         if event::poll(std::time::Duration::from_millis(200))? {
+
             if let Event::Key(key) = event::read()? {
                 match key.code {
                     KeyCode::Char('q') => break,
                     KeyCode::Char('1') => app.goto_screen(app::AppScreen::Library),
                     KeyCode::Char('5') => app.goto_screen(app::AppScreen::Browser),
                     KeyCode::Char('a') => {
+                        let mut lib = app.library_mut();
+
                         if app.screen == AppScreen::Browser {
                             if let Some(BrowserItem::Entry(path)) = app.browser.list.selected_item()
                             {
                                 let tracks = scan_path_for_tracks(path);
-                                app.library.add_tracks(tracks);
+                                lib.add_tracks(tracks);
                             }
                         }
                     }
@@ -65,11 +69,15 @@ fn main() -> Result<()> {
                     KeyCode::Down => match app.screen {
                         AppScreen::Browser => app.browser.move_down(),
 
-                        AppScreen::Library => match app.library.focus {
-                            LibraryFocus::Left => app.library.move_down(),
-                            LibraryFocus::Right => {
-                                let count = app.library.visible_tracks().len();
-                                app.library.move_track_down(count);
+                        AppScreen::Library => {
+                            let mut lib = app.library_mut();
+
+                            match lib.focus {
+                                LibraryFocus::Left => lib.move_down(),
+                                LibraryFocus::Right => {
+                                    let count = lib.visible_tracks().len();
+                                    lib.move_track_down(count);
+                                }
                             }
                         },
                     },
@@ -77,9 +85,13 @@ fn main() -> Result<()> {
                     KeyCode::Up => match app.screen {
                         AppScreen::Browser => app.browser.move_up(),
 
-                        AppScreen::Library => match app.library.focus {
-                            LibraryFocus::Left => app.library.move_up(),
-                            LibraryFocus::Right => app.library.move_track_up(),
+                        AppScreen::Library => {
+                            let mut lib = app.library_mut();
+
+                            match lib.focus {
+                                LibraryFocus::Left => lib.move_up(),
+                                LibraryFocus::Right => lib.move_track_up(),
+                            }
                         },
                     },
 
@@ -88,21 +100,32 @@ fn main() -> Result<()> {
                             app.browser.open_selected();
                         }
 
+                        let mut lib = app.library_mut();
+
                         if app.screen == AppScreen::Library
-                            && app.library.focus == LibraryFocus::Right
+                            && lib.focus == LibraryFocus::Right
                         {
-                            if let Some(track) =
-                                app.library.visible_tracks().get(app.library.track_index)
-                            {
-                                app.player.stop(); // stop current
-                                app.player.play(&track.path); // play new
+                            let selected = {
+                                let lib = lib;
+                                lib.visible_tracks().get(lib.track_index).cloned()
+                            };
+
+                            if let Some(track) = selected {
+                                let player = Arc::clone(&app.player);
+
+                                // Stop current playback and play selected track
+                                {
+                                    let mut plyr = player.lock().unwrap();
+                                    plyr.stop();
+                                    plyr.play(&track.path);
+                                }
                             }
                         }
                     }
 
-                    // KeyCode::Char('p') => {
-                    //     app.player.autoplay = !app.player.autoplay;
-                    // }
+                    KeyCode::Char('p') => {
+                        app.autoplay_enabled = !app.autoplay_enabled;
+                    }
 
                     // KeyCode::Char('c') => {
                     //     if app.player.is_loaded() {
@@ -113,7 +136,6 @@ fn main() -> Result<()> {
                     //         }
                     //     }
                     // }
-
                     KeyCode::Char('n') => {
                         app.play_next_track();
                     }
@@ -124,12 +146,37 @@ fn main() -> Result<()> {
                         }
                     }
                     KeyCode::Char(' ') => {
+                        let mut lib = app.library_mut();
+
                         if app.screen == AppScreen::Library {
-                            app.library.toggle_expanded();
+                            lib.toggle_expanded();
                         }
                     }
-                    KeyCode::Tab => app.library.tab_focus(),
+                    KeyCode::Tab => {
+                        let mut lib = app.library_mut();
+                        lib.tab_focus();
+                    }
                     _ => {}
+                }
+            }
+        }
+
+        if app
+            .player
+            .lock()
+            .unwrap()
+            .autoplay_trigger
+            .swap(false, Ordering::SeqCst)
+        {
+            let mut plyr = app.player.lock().unwrap();
+            let mut lib = app.library.lock().unwrap();
+
+            if let Some(current_path) = &plyr.current_path {
+                if app.autoplay_enabled {
+                    if let Some(next_path) = lib.next_track_path(current_path) {
+                        lib.select_track_by_path(&next_path);
+                        plyr.play(&next_path);
+                    }
                 }
             }
         }
