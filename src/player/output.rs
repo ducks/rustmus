@@ -41,9 +41,9 @@ impl AudioOutput {
                 }
             },
             move |err| {
-                eprintln!("CPAL stream error: {err}");
+                log::error!("CPAL stream error: {err}");
             },
-            None
+            None,
         )?;
 
         stream.play()?;

@@ -10,6 +10,7 @@ pub fn draw_ui(frame: &mut Frame, app: &mut App) {
     match app.screen {
         AppScreen::Library => screens::library::draw(frame, area, app),
         AppScreen::Browser => screens::browser::draw(frame, area, app),
+        _ => println!("ok"),
     }
 }
 

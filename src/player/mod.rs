@@ -6,38 +6,38 @@ use crate::player::thread::JoinHandle;
 use std::{
     fs::File,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicBool, Ordering},
     sync::{Arc, Mutex},
     thread,
     time::Duration,
 };
 
 use cpal::{
-    traits::{DeviceTrait, HostTrait, StreamTrait},
     Stream,
+    traits::{DeviceTrait, HostTrait, StreamTrait},
 };
 use symphonia::core::{
-    audio::{ AudioBufferRef, Signal },
-    codecs::{ CODEC_TYPE_NULL, DecoderOptions },
-    formats::{FormatOptions},
+    audio::{AudioBufferRef, Signal},
+    codecs::{CODEC_TYPE_NULL, DecoderOptions},
+    formats::FormatOptions,
     io::MediaSourceStream,
     meta::MetadataOptions,
 };
 
-use symphonia::default::{ get_codecs, get_probe };
+use symphonia::default::{get_codecs, get_probe};
 
-use log::{info, debug, error};
+use log;
 
 use std::collections::VecDeque;
-
-
 
 pub struct Player {
     pub current_path: Option<PathBuf>,
     pub is_playing: bool,
-    pub autoplay: bool,
     pub handle: Option<JoinHandle<()>>,
     stream: Option<Stream>,
     buffer: Arc<Mutex<Vec<f32>>>,
+    pub autoplay_trigger: Arc<AtomicBool>,
+    pub is_decoder_done: Arc<AtomicBool>,
 }
 
 impl Player {
@@ -45,15 +45,19 @@ impl Player {
         Self {
             current_path: None,
             is_playing: false,
-            autoplay: true,
             stream: None,
             handle: None,
             buffer: Arc::new(Mutex::new(Vec::new())),
+            autoplay_trigger: Arc::new(AtomicBool::new(false)),
+            is_decoder_done: Arc::new(AtomicBool::new(false)),
         }
     }
 
     pub fn play(&mut self, path: &Path) {
         self.stop(); // Stop any current playback
+
+        self.autoplay_trigger.store(false, Ordering::SeqCst);
+        self.is_decoder_done.store(false, Ordering::SeqCst);
 
         let file = File::open(path).expect("Failed to open file");
         let mss = MediaSourceStream::new(Box::new(file), Default::default());
@@ -99,6 +103,10 @@ impl Player {
         let sample_buf = Arc::new(Mutex::new(VecDeque::<f32>::new()));
         let sample_buf_clone = Arc::clone(&sample_buf);
 
+        let autoplay_trigger = Arc::clone(&self.autoplay_trigger);
+        let decoder_done = Arc::clone(&self.is_decoder_done);
+        let decoder_done_for_thread = Arc::clone(&self.is_decoder_done);
+
         let stream = device
             .build_output_stream(
                 &config,
@@ -108,8 +116,12 @@ impl Player {
                     for sample in data.iter_mut() {
                         *sample = buf.pop_front().unwrap_or(0.0); // Pop from front = correct order
                     }
+
+                    if buf.is_empty() && decoder_done.load(Ordering::SeqCst) {
+                        autoplay_trigger.store(true, Ordering::SeqCst);
+                    }
                 },
-                move |err| eprintln!("CPAL stream error: {err}"),
+                move |err| log::error!("CPAL stream error: {err}"),
                 None,
             )
             .expect("Failed to build output stream");
@@ -119,6 +131,7 @@ impl Player {
         self.is_playing = true;
         self.current_path = Some(path.to_path_buf());
 
+
         // Spawn decoding thread
         let decode_buffer = Arc::clone(&sample_buf);
         let handle = thread::spawn(move || {
@@ -126,21 +139,29 @@ impl Player {
                 let decoded = match decoder.decode(&packet) {
                     Ok(decoded) => decoded,
                     Err(err) => {
-                        eprintln!("Decode error: {err}");
+                        log::error!("Decode error: {err}");
                         continue;
                     }
                 };
 
                 let spec = decoded.spec();
-                log::debug!("Decoded: sample_rate={}, channels={}",  spec.rate, spec.channels.count());
-                log::debug!("CPAL: sample_rate={}, channels={}", config.sample_rate.0, config.channels);
+                log::debug!(
+                    "Decoded: sample_rate={}, channels={}",
+                    spec.rate,
+                    spec.channels.count()
+                );
+                log::debug!(
+                    "CPAL: sample_rate={}, channels={}",
+                    config.sample_rate.0,
+                    config.channels
+                );
 
                 let mut samples = Vec::new();
 
                 match &decoded {
                     AudioBufferRef::F32(_) => log::debug!("Decoded buffer format: F32"),
                     AudioBufferRef::S16(_) => log::debug!("Decoded buffer format: S16"),
-                    AudioBufferRef::U8(_)  => log::debug!("Decoded buffer format: U8"),
+                    AudioBufferRef::U8(_) => log::debug!("Decoded buffer format: U8"),
                     AudioBufferRef::S24(_) => log::debug!("Decoded buffer format: S24"),
                     AudioBufferRef::F64(_) => log::debug!("Decoded buffer format: F64"),
                     AudioBufferRef::S32(_) => log::debug!("Decoded buffer format: S32"),
@@ -203,13 +224,14 @@ impl Player {
             }
 
             log::debug!("Finished decoding.");
+            decoder_done_for_thread.store(true, Ordering::SeqCst);
         });
+
 
         self.handle = Some(handle);
         self.stream = Some(stream); // store the stream if needed for later stop/resume
         self.buffer = buffer;
     }
-
 
     pub fn stop(&mut self) {
         self.stream = None;

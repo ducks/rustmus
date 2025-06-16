@@ -7,6 +7,8 @@ use crate::library::{LibraryFocus, LibrarySelection};
 use crate::library::VisibleRow;
 
 pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
+    let library = app.library_mut();
+
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(40), Constraint::Percentage(60)])
@@ -16,12 +18,12 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
     let mut left_items = Vec::new();
     let mut selected_idx = 0;
 
-    for (i, row) in app.library.visible_rows.iter().enumerate() {
-        let is_selected = Some(row_to_selection(row)) == app.library.selection;
+    for (i, row) in library.visible_rows.iter().enumerate() {
+        let is_selected = Some(row_to_selection(row)) == library.selection;
 
         let label = match row {
             VisibleRow::Artist { artist_index } => {
-                let artist = &app.library.artists[*artist_index];
+                let artist = &library.artists[*artist_index];
                 let marker = if artist.expanded { "▾" } else { "▸" };
                 format!("{marker} {}", artist.name)
             }
@@ -29,7 +31,7 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
                 artist_index,
                 album_index,
             } => {
-                let album = &app.library.artists[*artist_index].albums[*album_index];
+                let album = &library.artists[*artist_index].albums[*album_index];
                 format!("  {}", album.name)
             }
         };
@@ -58,15 +60,15 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
     frame.render_stateful_widget(left_list, chunks[0], &mut left_state);
 
     // ───── Right: Tracks ─────
-    let (right_items, playable_indices) = app.library.right_pane_items();
+    let (right_items, playable_indices) = library.right_pane_items();
 
     let visual_index = playable_indices
-        .get(app.library.track_index)
+        .get(library.track_index)
         .copied()
         .unwrap_or(0);
 
     let mut right_state = ListState::default();
-    if app.library.focus == LibraryFocus::Right {
+    if library.focus == LibraryFocus::Right {
         right_state.select(Some(visual_index));
     }
 
@@ -75,7 +77,7 @@ pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
         .highlight_symbol("➤ ")
         .highlight_style(Style::default().bg(Color::Blue).fg(Color::Black));
 
-    if app.library.focus == LibraryFocus::Right {
+    if library.focus == LibraryFocus::Right {
         frame.render_stateful_widget(right_list, chunks[1], &mut right_state);
     } else {
         frame.render_widget(right_list, chunks[1]);

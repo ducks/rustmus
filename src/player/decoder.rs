@@ -1,16 +1,14 @@
 use std::fs::File;
 use std::path::Path;
-use symphonia::core::codecs::{Decoder, DecoderOptions, CODEC_TYPE_NULL};
+use symphonia::core::codecs::{CODEC_TYPE_NULL, Decoder, DecoderOptions};
 use symphonia::core::formats::{FormatOptions, FormatReader, Track};
 use symphonia::core::io::MediaSourceStream;
 use symphonia::core::meta::MetadataOptions;
 use symphonia::default::{get_codecs, get_probe};
 
-pub fn open_decoder(path: &Path) -> anyhow::Result<(
-    Box<dyn FormatReader>,
-    Box<dyn Decoder>,
-    Track
-)> {
+pub fn open_decoder(
+    path: &Path,
+) -> anyhow::Result<(Box<dyn FormatReader>, Box<dyn Decoder>, Track)> {
     let file = File::open(path)?;
     let mss = MediaSourceStream::new(Box::new(file), Default::default());
 

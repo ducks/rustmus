@@ -1,6 +1,9 @@
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+
 use crate::browser::BrowserState;
 
-use crate::library::{LibraryFocus, LibraryState};
+use crate::library::LibraryState;
 
 use crate::persistence;
 
@@ -15,31 +18,46 @@ pub enum AppScreen {
 pub struct App {
     pub screen: AppScreen,
     pub browser: BrowserState,
-    pub library: LibraryState,
-    pub player: Player,
+    pub library: Arc<Mutex<LibraryState>>,
+    pub player: Arc<Mutex<Player>>,
+    pub play_queue: Vec<PathBuf>,
+    pub queue_index: usize,
+    pub autoplay_enabled: bool,
 }
 
 impl App {
     pub fn new() -> Self {
         let artists = persistence::load_library().unwrap_or_else(|_| vec![]);
 
-        let mut library = LibraryState::new();
-        library.artists = artists;
-        library.rebuild_visible_rows(); // Make sure UI stays in sync
+        let library = Arc::new(Mutex::new(LibraryState::new()));
+        library.lock().unwrap().artists = artists;
+        library.lock().unwrap().rebuild_visible_rows(); // Make sure UI stays in sync
 
         Self {
-            screen: AppScreen::Library,
+            screen: AppScreen::Browser,
             browser: BrowserState::new(),
             library: library,
-            player: Player::new(),
+            player: Arc::new(Mutex::new(Player::new())),
+            play_queue: Vec::new(),
+            queue_index: 0,
+            autoplay_enabled: true,
         }
     }
 
+    pub fn player_mut(&self) -> std::sync::MutexGuard<'_, Player> {
+        self.player.lock().unwrap()
+    }
+
+    pub fn library_mut(&self) -> std::sync::MutexGuard<'_, LibraryState> {
+        self.library.lock().unwrap()
+    }
+
     pub fn update(&mut self) {
-        if self.player.autoplay &&
-            self.player.is_loaded() &&
-            self.player.is_done() &&
-            !self.player.is_playing {
+        if self.autoplay_enabled
+            && self.player_mut().is_loaded()
+            && self.player_mut().is_done()
+            && !self.player_mut().is_playing
+        {
             self.play_next_track();
         }
     }
@@ -49,20 +67,20 @@ impl App {
     }
 
     pub fn play_next_track(&mut self) {
-        eprintln!("called play_next_track");
-
-        if let Some(current) = &self.player.current_path {
-            eprintln!("currently playing: {:?}", current);
-
-            if let Some(next_path) = self.library.next_track_path(current) {
-                eprintln!("next track: {:?}", next_path);
-                self.library.select_track_by_path(&next_path);
-                self.player.play(&next_path);
-            } else {
-                eprintln!("no next track found");
-            }
+        if self.queue_index + 1 < self.play_queue.len() {
+            self.queue_index += 1;
+            let next_path = self.play_queue[self.queue_index].clone();
+            self.library_mut().select_track_by_path(&next_path);
+            self.player_mut().play(&next_path);
         } else {
-            eprintln!("no currently playing track");
+            log::debug!("Reached end of queue");
+            self.queue_index = 0;
+            self.play_queue.clear();
         }
+    }
+
+    pub fn set_play_queue(&mut self, tracks: Vec<PathBuf>, start_index: usize) {
+        self.play_queue = tracks;
+        self.queue_index = start_index;
     }
 }
