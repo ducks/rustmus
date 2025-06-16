@@ -330,6 +330,7 @@ pub struct LibraryTrack {
     pub artist: String,
     pub album: String,
     pub track_number: Option<u32>,
+    pub album_artist: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -361,7 +362,7 @@ pub fn scan_path_for_tracks(path: &Path) -> Vec<LibraryTrack> {
             .and_then(|ext| ext.to_str())
             .map(|s| s.to_ascii_lowercase());
 
-        let (title, artist, album, track_number) = match ext.as_deref() {
+        let (title, artist, album, track_number, album_artist) = match ext.as_deref() {
             Some("mp3") => extract_id3_tags(path),
             Some("flac") => extract_symphonia_tags(path),
             _ => continue,
@@ -373,13 +374,14 @@ pub fn scan_path_for_tracks(path: &Path) -> Vec<LibraryTrack> {
             artist,
             album,
             track_number,
+            album_artist
         });
     }
 
     tracks
 }
 
-fn extract_id3_tags(path: &Path) -> (String, String, String, Option<u32>) {
+fn extract_id3_tags(path: &Path) -> (String, String, String, Option<u32>, String) {
     let tag = Id3Tag::read_from_path(path).ok();
 
     let title = tag
@@ -397,12 +399,21 @@ fn extract_id3_tags(path: &Path) -> (String, String, String, Option<u32>) {
         .and_then(|t| t.album())
         .unwrap_or("Unknown Album")
         .to_string();
+
+    let album_artist = tag
+        .as_ref()
+        .and_then(|t| t.album_artist())
+        .unwrap_or("Unknown Album Artist")
+        .to_string();
+
     let track_number = tag.and_then(|t| t.track()).map(|n| n as u32);
 
-    (title, artist, album, track_number)
+
+
+    (title, artist, album, track_number, album_artist)
 }
 
-fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>) {
+fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>, String) {
     use symphonia::core::meta::StandardTagKey;
 
     let file = match File::open(path) {
@@ -413,6 +424,7 @@ fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>) 
                 "Unknown Artist".into(),
                 "Unknown Album".into(),
                 None,
+                "Unknown Album Artist".into(),
             );
         }
     };
@@ -432,6 +444,7 @@ fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>) 
                 "Unknown Artist".into(),
                 "Unknown Album".into(),
                 None,
+                "Unknown Album Artist".into(),
             );
         }
     };
@@ -441,6 +454,7 @@ fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>) 
 
     let mut title = "Unknown Title".to_string();
     let mut artist = "Unknown Artist".to_string();
+    let mut album_artist = "Unknown Album Artist".to_string();
     let mut album = "Unknown Album".to_string();
     let mut track_number = None;
 
@@ -449,6 +463,7 @@ fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>) 
             match tag.std_key {
                 Some(StandardTagKey::TrackTitle) => title = tag.value.to_string(),
                 Some(StandardTagKey::Artist) => artist = tag.value.to_string(),
+                Some(StandardTagKey::AlbumArtist) => album_artist = tag.value.to_string(),
                 Some(StandardTagKey::Album) => album = tag.value.to_string(),
                 Some(StandardTagKey::TrackNumber) => {
                     track_number = tag.value.to_string().parse::<u32>().ok();
@@ -458,7 +473,7 @@ fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>) 
         }
     }
 
-    (title, artist, album, track_number)
+    (title, artist, album, track_number, album_artist)
 }
 
 #[derive(PartialEq)]
