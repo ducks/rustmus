@@ -952,24 +952,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rustmus"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "cpal",
- "crossterm",
- "id3",
- "log",
- "ratatui",
- "serde",
- "serde_json",
- "simplelog",
- "symphonia",
- "tokio",
- "walkdir",
-]
-
-[[package]]
 name = "rustversion"
 version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1026,6 +1008,24 @@ dependencies = [
  "memchr",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "shelltrax"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cpal",
+ "crossterm",
+ "id3",
+ "log",
+ "ratatui",
+ "serde",
+ "serde_json",
+ "simplelog",
+ "symphonia",
+ "tokio",
+ "walkdir",
 ]
 
 [[package]]

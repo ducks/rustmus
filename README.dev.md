@@ -1,6 +1,6 @@
-# Developer Guide: rustmus
+# Developer Guide: shelltrax
 
-This document is for contributors and maintainers of `rustmus`.
+This document is for contributors and maintainers of `shelltrax`.
 For user-facing instructions, see [README.md](./README.md).
 
 ---
