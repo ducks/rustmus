@@ -25,8 +25,8 @@ _Coming soon..._
 ## Installation
 
 ```bash
-git clone git@github.com:ducks/rustmus.git
-cd rustmus
+git clone git@github.com:ducks/shelltrax.git
+cd shelltrax
 cargo run
 ```
 
