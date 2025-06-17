@@ -192,8 +192,8 @@ impl Player {
                     }
                     AudioBufferRef::S24(buf) => {
                         for frame in 0..buf.frames() {
-                            for chan in 0..buf.spec().channels.count() {
-                                let val = buf.chan(chan)[frame];
+                            for ch in 0..buf.spec().channels.count() {
+                                let val = buf.chan(ch)[frame];
                                 let sample_f32 = val.into_i32() as f32 / (1 << 23) as f32;
                                 samples.push(sample_f32);
                             }
@@ -201,15 +201,15 @@ impl Player {
                     }
                     AudioBufferRef::F64(buf) => {
                         for frame in 0..buf.frames() {
-                            for chan in 0..buf.spec().channels.count() {
-                                samples.push(buf.chan(chan)[frame] as f32);
+                            for ch in 0..buf.spec().channels.count() {
+                                samples.push(buf.chan(ch)[frame] as f32);
                             }
                         }
                     }
                     AudioBufferRef::S32(buf) => {
                         for frame in 0..buf.frames() {
-                            for chan in 0..buf.spec().channels.count() {
-                                samples.push(buf.chan(chan)[frame] as f32 / i32::MAX as f32);
+                            for ch in 0..buf.spec().channels.count() {
+                                samples.push(buf.chan(ch)[frame] as f32 / i32::MAX as f32);
                             }
                         }
                     }
@@ -220,10 +220,13 @@ impl Player {
                 }
 
                 decode_buffer.lock().unwrap().extend(samples);
-                std::thread::sleep(Duration::from_millis(10));
-            }
 
-            log::debug!("Finished decoding.");
+                // simulate streaming rate (may be adjustable)
+                std::thread::sleep(Duration::from_millis(10));
+                    }
+
+            // Decoding is finished!
+            log::debug!("Finished decoding, setting decoder_done = true");
             decoder_done_for_thread.store(true, Ordering::SeqCst);
         });
 

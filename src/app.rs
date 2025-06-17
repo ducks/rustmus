@@ -1,9 +1,13 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
 use crate::browser::BrowserState;
 
-use crate::library::LibraryState;
+use crate::library::{
+    LibraryState,
+    LibraryTrack
+};
 
 use crate::persistence;
 
@@ -23,6 +27,14 @@ pub struct App {
     pub play_queue: Vec<PathBuf>,
     pub queue_index: usize,
     pub autoplay_enabled: bool,
+    // existing fields...
+    pub current_track: Option<LibraryTrack>,
+
+    /// Playback duration in seconds
+    pub playback_duration: u64,
+
+    /// Playback start
+    pub playback_start: Option<Instant>,
 }
 
 impl App {
@@ -41,6 +53,9 @@ impl App {
             play_queue: Vec::new(),
             queue_index: 0,
             autoplay_enabled: true,
+            current_track: None,
+            playback_duration: 0,
+            playback_start: None,
         }
     }
 
@@ -70,14 +85,33 @@ impl App {
         if self.queue_index + 1 < self.play_queue.len() {
             self.queue_index += 1;
             let next_path = self.play_queue[self.queue_index].clone();
-            self.library_mut().select_track_by_path(&next_path);
+
+           // Scope the library borrow once
+            let next_track = {
+                let mut lib = self.library_mut();
+                lib.select_track_by_path(&next_path);
+                lib.track_by_path(&next_path).cloned()
+            };
+
+            if let Some(track) = next_track {
+                self.current_track = Some(track);
+                self.playback_start = Some(Instant::now());
+            } else {
+                log::warn!("Could not find LibraryTrack for path: {:?}", next_path);
+                self.current_track = None;
+                self.playback_start = None;
+            }
+
             self.player_mut().play(&next_path);
         } else {
             log::debug!("Reached end of queue");
             self.queue_index = 0;
             self.play_queue.clear();
+            self.current_track = None;
+            self.playback_start = None;
         }
     }
+
 
     pub fn set_play_queue(&mut self, tracks: Vec<PathBuf>, start_index: usize) {
         self.play_queue = tracks;

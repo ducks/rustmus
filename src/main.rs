@@ -9,6 +9,8 @@ mod ui;
 
 use app::{App, AppScreen};
 
+use std::time::Instant;
+
 use crate::browser::BrowserItem;
 
 use crate::library::{LibraryFocus, scan_path_for_tracks};
@@ -45,6 +47,40 @@ fn main() -> Result<()> {
 
     loop {
         app.update();
+
+        if app
+            .player
+            .lock()
+            .unwrap()
+            .autoplay_trigger
+            .swap(false, Ordering::SeqCst)
+        {
+            let mut plyr = app.player.lock().unwrap();
+            let mut lib = app.library.lock().unwrap();
+
+            if let Some(current_path) = &plyr.current_path {
+                if app.autoplay_enabled {
+                    if let Some(next_path) = lib.next_track_path(current_path) {
+                        lib.select_track_by_path(&next_path);
+                        plyr.play(&next_path);
+
+                        if let Some(next_track) = lib.track_by_path(&next_path) {
+                            app.current_track = Some(next_track.clone());
+                            app.playback_start = Some(Instant::now());
+
+                            log::debug!(
+                                "Autoplay switched to: {} – {}",
+                                next_track.album_artist,
+                                next_track.title
+                            );
+                            log::debug!("playback_start: {:?}", app.playback_start);
+                        }
+                    }
+                }
+            }
+        }
+
+        log::debug!("Drawing track: {:?}", app.current_track.as_ref().map(|t| &t.title));
         terminal.draw(|f| ui::draw_ui(f, &mut app))?;
 
         if event::poll(std::time::Duration::from_millis(200))? {
@@ -61,6 +97,8 @@ fn main() -> Result<()> {
                             if let Some(BrowserItem::Entry(path)) = app.browser.list.selected_item()
                             {
                                 let tracks = scan_path_for_tracks(path);
+                                lib.tracks = tracks.clone();
+
                                 lib.add_tracks(tracks);
                             }
                         }
@@ -118,6 +156,10 @@ fn main() -> Result<()> {
                                     let mut plyr = player.lock().unwrap();
                                     plyr.stop();
                                     plyr.play(&track.path);
+
+                                    app.current_track = Some(track.clone());
+                                    app.playback_duration = track.duration.unwrap_or(0);
+                                    app.playback_start = Some(Instant::now());
                                 }
                             }
                         }
@@ -157,26 +199,6 @@ fn main() -> Result<()> {
                         lib.tab_focus();
                     }
                     _ => {}
-                }
-            }
-        }
-
-        if app
-            .player
-            .lock()
-            .unwrap()
-            .autoplay_trigger
-            .swap(false, Ordering::SeqCst)
-        {
-            let mut plyr = app.player.lock().unwrap();
-            let mut lib = app.library.lock().unwrap();
-
-            if let Some(current_path) = &plyr.current_path {
-                if app.autoplay_enabled {
-                    if let Some(next_path) = lib.next_track_path(current_path) {
-                        lib.select_track_by_path(&next_path);
-                        plyr.play(&next_path);
-                    }
                 }
             }
         }

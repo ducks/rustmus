@@ -2,7 +2,7 @@ use crate::app::App;
 use crate::browser::BrowserItem;
 use ratatui::{prelude::*, widgets::*};
 
-pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
+pub fn draw(frame: &mut Frame, app: &mut App, area: Rect) {
     let items: Vec<ListItem> = app
         .browser
         .list

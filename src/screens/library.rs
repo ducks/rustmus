@@ -6,7 +6,7 @@ use crate::library::{LibraryFocus, LibrarySelection};
 
 use crate::library::VisibleRow;
 
-pub fn draw(frame: &mut Frame, area: Rect, app: &mut App) {
+pub fn draw(frame: &mut Frame, app: &mut App, area: Rect) {
     let library = app.library_mut();
 
     let chunks = Layout::default()
