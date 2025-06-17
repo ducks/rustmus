@@ -88,7 +88,7 @@ impl LibraryState {
                 }
             } else {
                 self.artists.push(ArtistNode {
-                    name: track.artist.clone(),
+                    name: track.album_artist.clone(),
                     albums: vec![AlbumNode {
                         name: track.album.clone(),
                         tracks: vec![track],
