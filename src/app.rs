@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::browser::BrowserState;
 
@@ -27,7 +27,6 @@ pub struct App {
     pub play_queue: Vec<PathBuf>,
     pub queue_index: usize,
     pub autoplay_enabled: bool,
-    // existing fields...
     pub current_track: Option<LibraryTrack>,
 
     /// Playback duration in seconds
@@ -35,6 +34,9 @@ pub struct App {
 
     /// Playback start
     pub playback_start: Option<Instant>,
+
+    pub paused_at: Option<Instant>,
+    pub paused_duration: Duration,
 }
 
 impl App {
@@ -56,6 +58,8 @@ impl App {
             current_track: None,
             playback_duration: 0,
             playback_start: None,
+            paused_at: None,
+            paused_duration: Duration::from_secs(0),
         }
     }
 
@@ -116,5 +120,35 @@ impl App {
     pub fn set_play_queue(&mut self, tracks: Vec<PathBuf>, start_index: usize) {
         self.play_queue = tracks;
         self.queue_index = start_index;
+    }
+
+    pub fn pause(&mut self) {
+        let mut player = self.player.lock().unwrap();
+        player.set_paused(true);
+        self.paused_at = Some(Instant::now());
+    }
+
+    pub fn resume(&mut self) {
+        let mut player = self.player.lock().unwrap();
+        player.set_paused(false);
+
+        if let Some(paused_at) = self.paused_at {
+            self.paused_duration += paused_at.elapsed();
+        }
+
+        self.paused_at = None;
+    }
+
+    pub fn toggle_pause(&mut self) {
+        let is_paused = {
+            let player = self.player.lock().unwrap();
+            player.is_paused
+        };
+
+        if is_paused {
+            self.resume();
+        } else {
+            self.pause();
+        }
     }
 }

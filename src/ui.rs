@@ -8,6 +8,8 @@ use ratatui::widgets::{
     Paragraph,
 };
 
+use std::time::Instant;
+
 pub fn draw_ui(frame: &mut Frame, app: &mut App) {
     let layout = Layout::default()
         .direction(Direction::Vertical)
@@ -42,9 +44,17 @@ fn render_footer(f: &mut Frame, app: &App, area: Rect) {
             app.playback_start.map(|t| t.elapsed())
         );
 
-        let elapsed = app.playback_start
-            .map(|start| start.elapsed().as_secs())
-            .unwrap_or(0);
+        let elapsed = app.playback_start.map(|start| {
+            let now = if let Some(paused_at) = app.paused_at {
+                paused_at // freeze at time of pause
+            } else {
+                Instant::now()
+            };
+
+            now.duration_since(start)
+                .saturating_sub(app.paused_duration)
+                .as_secs()
+        }).unwrap_or(0);
 
         let dur = track.duration.unwrap_or(0);
         let pos = elapsed.min(dur);

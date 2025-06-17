@@ -169,15 +169,10 @@ fn main() -> Result<()> {
                         app.autoplay_enabled = !app.autoplay_enabled;
                     }
 
-                    // KeyCode::Char('c') => {
-                    //     if app.player.is_loaded() {
-                    //         if app.player.is_paused() {
-                    //             app.player.resume();
-                    //         } else {
-                    //             app.player.pause();
-                    //         }
-                    //     }
-                    // }
+                    KeyCode::Char('c') => {
+                        app.toggle_pause();
+                    }
+
                     KeyCode::Char('n') => {
                         app.play_next_track();
                     }
