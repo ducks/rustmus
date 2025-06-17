@@ -69,7 +69,7 @@ impl LibraryState {
     pub fn add_tracks(&mut self, tracks: Vec<LibraryTrack>) {
         for track in tracks {
             // Check if artist exists
-            if let Some(artist) = self.artists.iter_mut().find(|a| a.name == track.artist) {
+            if let Some(artist) = self.artists.iter_mut().find(|a| a.name == track.album_artist) {
                 // Check if album exists
                 if let Some(album) = artist.albums.iter_mut().find(|a| a.name == track.album) {
                     // Check for duplicate by path
