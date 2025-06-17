@@ -38,6 +38,8 @@ pub struct Player {
     buffer: Arc<Mutex<Vec<f32>>>,
     pub autoplay_trigger: Arc<AtomicBool>,
     pub is_decoder_done: Arc<AtomicBool>,
+    pub is_paused: bool,
+    pub paused_flag: Arc<AtomicBool>,
 }
 
 impl Player {
@@ -50,6 +52,8 @@ impl Player {
             buffer: Arc::new(Mutex::new(Vec::new())),
             autoplay_trigger: Arc::new(AtomicBool::new(false)),
             is_decoder_done: Arc::new(AtomicBool::new(false)),
+            is_paused: false,
+            paused_flag: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -106,12 +110,20 @@ impl Player {
         let autoplay_trigger = Arc::clone(&self.autoplay_trigger);
         let decoder_done = Arc::clone(&self.is_decoder_done);
         let decoder_done_for_thread = Arc::clone(&self.is_decoder_done);
+        let paused_flag = Arc::clone(&self.paused_flag);
 
         let stream = device
             .build_output_stream(
                 &config,
                 move |data: &mut [f32], _| {
                     let mut buf = sample_buf_clone.lock().unwrap();
+
+                    if paused_flag.load(Ordering::SeqCst) {
+                        for sample in data.iter_mut() {
+                            *sample = 0.0;
+                        }
+                        return;
+                    }
 
                     for sample in data.iter_mut() {
                         *sample = buf.pop_front().unwrap_or(0.0); // Pop from front = correct order
@@ -249,5 +261,18 @@ impl Player {
 
     pub fn is_done(&self) -> bool {
         self.buffer.lock().unwrap().is_empty() && self.is_playing
+    }
+
+    pub fn set_paused(&mut self, paused: bool) {
+        self.is_paused = paused;
+        self.paused_flag.store(paused, Ordering::SeqCst);
+    }
+
+    pub fn pause(&mut self) {
+        self.set_paused(true);
+    }
+
+    pub fn resume(&mut self) {
+        self.set_paused(false);
     }
 }
