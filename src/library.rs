@@ -48,6 +48,7 @@ pub struct LibraryState {
     pub focus: LibraryFocus,
     pub track_index: usize,
     pub visible_rows: Vec<VisibleRow>,
+    pub tracks: Vec<LibraryTrack>
 }
 
 impl LibraryState {
@@ -63,6 +64,7 @@ impl LibraryState {
             focus: LibraryFocus::Left,
             track_index: 0,
             visible_rows: Vec::new(),
+            tracks: Vec::new(),
         }
     }
 
@@ -321,6 +323,10 @@ impl LibraryState {
             self.state.select(Some(i));
         }
     }
+
+    pub fn track_by_path(&self, path: &Path) -> Option<&LibraryTrack> {
+        self.tracks.iter().find(|t| t.path == path)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -331,6 +337,7 @@ pub struct LibraryTrack {
     pub album: String,
     pub track_number: Option<u32>,
     pub album_artist: String,
+    pub duration: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -362,7 +369,7 @@ pub fn scan_path_for_tracks(path: &Path) -> Vec<LibraryTrack> {
             .and_then(|ext| ext.to_str())
             .map(|s| s.to_ascii_lowercase());
 
-        let (title, artist, album, track_number, album_artist) = match ext.as_deref() {
+        let (title, artist, album, track_number, album_artist, duration) = match ext.as_deref() {
             Some("mp3") => extract_id3_tags(path),
             Some("flac") => extract_symphonia_tags(path),
             _ => continue,
@@ -374,14 +381,15 @@ pub fn scan_path_for_tracks(path: &Path) -> Vec<LibraryTrack> {
             artist,
             album,
             track_number,
-            album_artist
+            album_artist,
+            duration,
         });
     }
 
     tracks
 }
 
-fn extract_id3_tags(path: &Path) -> (String, String, String, Option<u32>, String) {
+fn extract_id3_tags(path: &Path) -> (String, String, String, Option<u32>, String, Option<u64>) {
     let tag = Id3Tag::read_from_path(path).ok();
 
     let title = tag
@@ -410,10 +418,10 @@ fn extract_id3_tags(path: &Path) -> (String, String, String, Option<u32>, String
 
 
 
-    (title, artist, album, track_number, album_artist)
+    (title, artist, album, track_number, album_artist, None)
 }
 
-fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>, String) {
+fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>, String, Option<u64>) {
     use symphonia::core::meta::StandardTagKey;
 
     let file = match File::open(path) {
@@ -425,6 +433,7 @@ fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>, 
                 "Unknown Album".into(),
                 None,
                 "Unknown Album Artist".into(),
+                None,
             );
         }
     };
@@ -445,6 +454,7 @@ fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>, 
                 "Unknown Album".into(),
                 None,
                 "Unknown Album Artist".into(),
+                None,
             );
         }
     };
@@ -473,7 +483,17 @@ fn extract_symphonia_tags(path: &Path) -> (String, String, String, Option<u32>, 
         }
     }
 
-    (title, artist, album, track_number, album_artist)
+    let mut duration = None;
+
+    if let Some(track) = probed.format.default_track() {
+        if let Some(tb) = track.codec_params.time_base {
+            if let Some(n_frames) = track.codec_params.n_frames {
+                duration = Some((n_frames as u64 * tb.numer as u64) / tb.denom as u64);
+            }
+        }
+    }
+
+    (title, artist, album, track_number, album_artist, duration)
 }
 
 #[derive(PartialEq)]
