@@ -20,7 +20,26 @@ terminal.
 
 ## Screenshots
 
+<details>
+<summary>
+Library Screenshot 1
+</summary>
 ![Shelltrax screenshot 1](screenshots/shelltrax-1.png)
+</details>
+
+<details>
+<summary>
+Library Screenshot 2
+</summary>
+![Shelltrax screenshot 2](screenshots/shelltrax-2.png)
+</details>
+
+<details>
+<summary>
+Browser Screenshot 1
+</summary>
+![Shelltrax screenshot 3](screenshots/shelltrax-3.png)
+</details>
 
 ## Installation
 
