@@ -66,8 +66,9 @@ fn render_footer(f: &mut Frame, app: &App, area: Rect) {
         };
 
         let info_line = Paragraph::new(format!(
-            "▶ {} – {}  {:02}:{:02} / {:02}:{:02}",
+            "▶ {} – {} - {}  {:02}:{:02} / {:02}:{:02}",
             track.album_artist,
+            track.album,
             track.title,
             pos / 60, pos % 60,
             dur / 60, dur % 60,
