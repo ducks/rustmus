@@ -24,21 +24,21 @@ terminal.
 <summary>
 Library Screenshot 1
 </summary>
-<img alt="Shelltrax screenshot 1" src="screenshots/shelltrax-1.png" width="600"/>
+<img alt="Shelltrax screenshot 1" src="screenshots/shelltrax-1.png" width="1200"/>
 </details>
 
 <details>
 <summary>
 Library Screenshot 2
 </summary>
-![Shelltrax screenshot 2](screenshots/shelltrax-2.png)
+<img alt="Shelltrax screenshot 2" src="screenshots/shelltrax-2.png" width="1200"/>
 </details>
 
 <details>
 <summary>
 Browser Screenshot 1
 </summary>
-![Shelltrax screenshot 3](screenshots/shelltrax-3.png)
+<img alt="Shelltrax screenshot 3" src="screenshots/shelltrax-3.png" width="1200"/>
 </details>
 
 ## Installation
