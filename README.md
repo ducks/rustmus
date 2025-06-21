@@ -20,7 +20,7 @@ terminal.
 
 ## Screenshots
 
-_Coming soon..._
+![Shelltrax screenshot 1](screenshots/shelltrax-1.png)
 
 ## Installation
 
