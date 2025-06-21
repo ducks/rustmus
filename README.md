@@ -24,7 +24,7 @@ terminal.
 <summary>
 Library Screenshot 1
 </summary>
-![Shelltrax screenshot 1](screenshots/shelltrax-1.png)
+<img alt="Shelltrax screenshot 1" src="screenshots/shelltrax-1.png" width="600"/>
 </details>
 
 <details>
